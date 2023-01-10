@@ -1,0 +1,256 @@
+KD Tree Experiment Report
+
+1.Explain existing code
+The specific idea is to determine whether the division is in the x direction or the y direction according to the size of the variance. If it is in the x direction, the given group of points will be sorted from the smallest to the largest according to the x coordinate of the point, and find the point v where x is the median. Then, for all points with x coordinate less than v, it will be established on the left subtree. For all points with x coordinate greater than v, it will be established on the right subtree. If the division is in the y direction, Sort the given point group from small to large according to the y coordinate of the point, find the point w where y is the median, and then build on the left subtree for all points with y coordinate less than w, and build on the right subtree for all points with y coordinate greater than w. According to this principle, the left subtree and the right subtree are established recursively until the left and right endpoints of the point group are equal, that is, the tree with this node as the root node has only one node.
+
+
+2.Realize and explain insert()和range()
+	Insert（）
+(1) For the node v to be inserted, first find out whether the division of the current root node is x or y. If the division is based on x and the x coordinate of v is less than the x coordinate of the current root node, then v should be located in the left subtree of the current root node, otherwise, v should be located in the right subtree of the current root node. If the division is based on y and the coordinate of v is less than the y coordinate of the current root node, then v should be located in the left subtree of the current root node, otherwise, V should be located in the right subtree of the current root node. If v is located in the left subtree of the current root node and the left subtree of the current root node is empty, then the left child of the current root node is directly set to v and fallback. If v is located in the right subtree of the current root node and the right subtree of the current root node is empty, then the right child of the current root node is directly set to v and fallback.
+(2) Code：
+    public void insert(Point point) {
+        root = insert(point, root, false, 0.0, 0.0, 1.0, 1.0);
+    }
+    
+    private Node insert(Point point, Node node, boolean isVertical, 
+        double x0, double y0, double x1, double y1) {
+
+        if (node == null) {
+            return new Node(point, new Rect(x0, y0, x1, y1));
+        }
+
+        // 改变分割方向
+        isVertical = !isVertical;
+
+        // 判断要插入的点在当前点的左/下还是右/上
+        double value0 = isVertical ? point.x : point.y;
+        double value1 = isVertical ? node.point.x : node.point.y;
+        if (value0 < value1) {
+            node.left = insert(point, node.left, isVertical,
+            x0, y0, isVertical ? node.point.x : x1, isVertical ? y1 : node.point.y);
+        } else {
+            node.right = insert(point, node.right, isVertical,
+            isVertical ? node.point.x : x0, isVertical ? y0 : node.point.y, x1, y1);
+        }
+        return node;
+}
+
+	Range（）
+(1) If the node to be deleted is a leaf node, delete it directly. If the node to be deleted has left children, find the node lmaxNode with the largest x or y on the left subtree (depending on the current partition), replace the current node with the point value, and set the partition direction of the current node to the size of the corresponding point of the lmaxNode, and recursively delete the lmaxNode in the left subtree. If the node to be deleted has a right child, find the node rminNode with the smallest x or y on the right subtree, replace the current node with the point value, keep the direction of the current node division unchanged, set the size to the size of the corresponding point of the rminNode, and recursively delete the rminNode on the right subtree.
+(2) Code：
+		// 判断是否包含该点， 用同名私有方法递归实现
+    public boolean contains(Point point) {
+        return contains(point, root, false);
+    }
+
+    private boolean contains(Point point, Node node, boolean isVertical) {
+        if (node == null) return false;
+
+        if (node.point.equals(point)) return true;
+
+        // 改变分割方向
+        isVertical = !isVertical;
+        // 判断要查询的点在当前点的左/下还是右/上
+        double value1 = isVertical ? point.x : point.y;
+        double value2 = isVertical ? node.point.x : node.point.y;
+        if (value1 < value2) {
+            return contains(point, node.left, isVertical);
+        } else {
+            return contains(point, node.right, isVertical);
+        }
+    }
+
+    // 返回矩形范围内的所有点， 用同名私有方法递归实现
+    public Iterable<Point> range(Rect rect) {
+        LinkedList<Point> result = new LinkedList<Point>();
+        range(rect, root, false, result);
+        return result;
+    }
+
+    private void range(Rect rect, Node node, boolean isVertical, LinkedList<Point> bag) {
+        if (node == null) return;
+
+        // 改变分割方向
+        isVertical = !isVertical;
+        Point point = node.point;
+        if (rect.contains(point)) bag.add(point);
+
+        // 判断当前点所分割的两个空间是否与矩形相交
+        double value = isVertical ? point.x : point.y;
+        double min = isVertical ? rect.minX : rect.minY;
+        double max = isVertical ? rect.maxX : rect.maxY;
+        if (min < value) {
+            range(rect, node.left, isVertical, bag);
+        }
+        if (max >= value) {
+            range(rect, node.right, isVertical, bag);
+        }
+    }
+
+    // 返回距离该点最近的点， 用同名私有方法递归实现
+    public Point nearest(Point target) {
+        return nearest(target, root, null, false);
+    }
+
+    private Point nearest(Point target, Node node, Point currentBest, boolean isVertical) {
+        if (node == null) return currentBest;
+        isVertical = !isVertical;
+        double value1 = isVertical ? target.x : target.y;
+        double value2 = isVertical ? node.point.x : node.point.y;
+
+        // 继续搜索目标点所在的半区
+        Node next = value1 < value2 ? node.left : node.right;
+        Node other = value1 < value2 ? node.right : node.left;
+        Point nextBest = nearest(target, next, node.point, isVertical);
+        double currentDistance = 0;
+        double nextDistance = nextBest.distanceSquareTo(target);
+        if (currentBest == null) {
+            currentBest = nextBest;
+            currentDistance = nextDistance;
+        } else {
+            currentDistance = currentBest.distanceSquareTo(target);
+            if (nextDistance < currentDistance) {
+                currentBest = nextBest;
+                currentDistance = nextDistance;
+            }
+        }
+        // 判断另一半区是否可能包含更近的点
+        if ((other != null) && (other.rect.distanceSquareToPoint(target) < currentDistance)) {
+            currentBest = nearest(target, other, currentBest, isVertical);
+        }
+        return currentBest;
+    }
+    public static void main(String[] args) {
+		// unit test
+    }
+}
+3.The time complexity of range query：
+Because each layer of kd-tree is a plane partition, we consider its grandchild nodes. The query only recursively queries those nodes that intersect with it, so we only need to judge the number of intersecting regions, and we can get T (n)=O (n). However, we can optimize the range query. We will find that many recursions are unnecessary because sometimes the region of a child node has been completely included, so we can record the region under its jurisdiction in the node, so that the recursion can be terminated in advance. It is not difficult to find that the same is true at higher latitudes. We can cut it once according to each latitude, but the complexity will be improved, Generally, the complexity of range query in d-dimensional space is O (nd − 1d), so it is not recommended to use kd-tree for range query. We have a more efficient data structure for range query - the query time complexity is O (logn) when range tree 2d is used.
+5.	KNN adjacency algorithm
+(1) KNN algorithm is a classification algorithm. The principle is to determine which category x belongs to according to the nearest K points when predicting a new value x.
+(2) advantages：Simple and easy to use. Compared with other algorithms, KNN is relatively simple and clear。
+(3) disadvantages：The memory requirement is high, because the algorithm stores all training data, and the prediction stage may be slow and sensitive to irrelevant functions and data size.
+
+(4) Code：
+import java.util.*;
+ 
+public class Knn {
+    /**
+     *
+     * @Title: cal
+     * @Description:
+     * @param centerPoint 未知中心点
+     * @param data 数据集
+     * @param k 邻域值
+     */
+    public static Map<String,Object > cal(Double[] centerPoint, List<Double[]> data, int k, int feature) {
+        //计算所有已知点到未知点的欧式距离
+        List<Map<String, Object>> tmpList = new ArrayList<Map<String, Object>>();
+        for (int i = 0; i < data.size(); i++) {
+            Double[] bArr = data.get(i);
+            Double euclidDis = euclidDistance(centerPoint, bArr,feature);
+            if (euclidDis==0)  continue;
+            Map<String, Object> map = new HashMap<String, Object>();
+            map.put("dis", euclidDis);
+            map.put("index", i);
+            map.put("type", bArr[feature]);
+            tmpList.add(map);
+        }
+ 
+        //根据距离对所有已知点排序
+        Collections.sort(tmpList, new Comparator<Map<String, Object>>() {
+            public int compare(Map<String, Object> f1, Map<String, Object> f2) {
+                double d1 = (double) f1.get("dis");
+                double d2 = (double) f2.get("dis");
+                if (d1 > d2) {
+                    return 1;
+                } else if (d1 < d2) {
+                    return -1;
+                } else {
+                    return 0;
+                }
+            }
+        });
+ 
+        //选取最近的k个点
+        List<Map<String, Object>> tmpListSub = tmpList.subList(0, k);
+ 
+        // 计算每个分类包含的点的个数
+        Map<String,Integer> classify = new HashMap<>();
+        for (Map<String, Object> map : tmpListSub) {
+            String type = map.get("type")+"";
+            classify.merge(type,1,Integer::sum);
+        }
+        // 找出最大频率
+        double value = 0.0;
+        String type = "";
+        for (Map.Entry<String, Integer> entry : classify.entrySet()) {
+            if (entry.getValue() > value) {
+                type = entry.getKey();
+                value = entry.getValue();
+            }
+        }
+        Map<String,Object> result = new HashMap<>();
+        result.put("knn_point",tmpListSub);
+        result.put("type",type);
+        return result;
+    }
+ 
+    /**
+     *
+     * @Title: euclidDistance
+     * @Description: 欧氏距离
+     * @param a
+     * @param b
+     * @return Double
+     */
+    public static Double euclidDistance(Double[] a, Double[] b, int feature){
+        double result = 0;
+        double tmp = 0;
+        for (int i = 0; i < feature ; i++) {
+            tmp = tmp + Math.pow(a[i]-b[i],2);
+        }
+        result = Math.sqrt(tmp);
+        return result;
+    }
+ 
+    public static void excute(String trainPath,String testPath, int k, int feature) {
+        try {
+            List<Double[]> trains = FileUtils.readDoubles(trainPath, "\t");
+            List<Double[]> tests  = FileUtils.readDoubles(testPath, "\t");
+            DrawPic drawPic = new DrawPic();
+            for (Double[] test : tests) {
+                Map<String, Object> classifyResult = cal(test,trains,k,feature);
+                Double type = Double.parseDouble(classifyResult.get("type")+"");
+                test[feature] = type+2;
+                System.out.println(classifyResult.toString());
+            }
+            drawPic.add(trains, 0d);
+			drawPic.add(trains, 1d);
+            drawPic.add(tests, 2d);
+            drawPic.add(tests, 3d);
+			drawPic.draw("KNN TEST RESULT:");
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+ 
+    public static void main(String[] args) {
+        int k = 5; // 参数一，k近邻
+        int feature = 2; // 参数二，特征的个数
+        excute("test/trainKnn.txt", "test/testKnn.txt", k , feature);
+    }
+}
+
+
+
+
+
+	Summary
+Through this experiment, I have a deeper understanding of kd tree. KD tree is the deformation of a binary tree. This problem only considers two-dimensional situations. After searching for more information, I also learned about K-dimension.
+KD tree is mainly processed as follows：
+（1）Select a split value: you need to select a split value according to this dimension to divide the data in the parent node into left and right nodes. KD's processing method is to sort the data according to the value of this dimension, and then take the data in the middle as the parent node. The data on the left side of the intermediate data is divided into the left subtree of the parent node, and the data on the right side of the intermediate data is divided into the right subtree of the parent node. Repeat the above process for each non-leaf node subtree until a complete binary tree is generated.
+（2）The relationship and difference between kd tree and binary tree.
+Binary search tree: data is stored in each node in the tree (root node, intermediate node, leaf node)
+Kd-Tree: The data is only stored in the leaf node, while the root node and the intermediate node store some space partition information
+
